@@ -9,6 +9,16 @@
 #include <MQ135.h>
 #include <math.h>
 
+#define BLYNK_TEMPLATE_ID "TMPL6zqrXlz6W"
+#define BLYNK_TEMPLATE_NAME "Air Quality"
+#define BLYNK_AUTH_TOKEN "SNPHQianuE-xPmTP4OHLnaC3QxpR3hIC"
+
+#include <WiFiClient.h>
+#include <BlynkSimpleWifi.h>
+
+#include <arduino_secrets.h>
+#include <WiFiS3.h>
+
 #define I2C_ADDRESS 0x3C
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -21,6 +31,7 @@ int MQ135Pin = A0;
 int ledPower = 7;
 int dht22_data = 4;
 
+BlynkTimer timer;
 
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 DHT_Unified dht(dht22_data, DHT22);
@@ -39,6 +50,10 @@ float heat_index = 0;
 float relative_humidity = 0;
 
 float co2_ppm = 0;
+
+void send_sensor(){
+  Blynk.virtualWrite(V1, random(0, 100));
+}
 
 void getDataDHT(float &temp, float &hi, float &rh){
   delay(1000);
@@ -109,28 +124,9 @@ float calc_aqi_epa(float concentration){
 
 void get_co2_ppm(float &CO2_ppm){
   delay(1000);
-  float rzero = mq135_sensor.getRZero();
   float correctedRZero = mq135_sensor.getCorrectedRZero(temperature, relative_humidity);
   float resistance = mq135_sensor.getResistance();
-  float ppm = mq135_sensor.getPPM();
   co2_ppm = mq135_sensor.getCorrectedPPM(temperature, relative_humidity);
-
-  /*
-  Serial.print("MQ135 RZero: ");
-  Serial.print(rzero);
-  Serial.print("\t Corrected RZero: ");
-  Serial.print(correctedRZero);
-  Serial.print("\t Resistance: ");
-  Serial.print(resistance);
-  Serial.print("\t PPM: ");
-  Serial.print(ppm);
-  Serial.print("ppm");
-  Serial.print("\t Corrected PPM: ");
-  Serial.print(correctedPPM);
-  Serial.println("ppm");
-  */
-  
-  //return correctedPPM;
 }
 
 void status_display(){
@@ -155,22 +151,14 @@ void status_display(){
   
   printText(94, 36, "%RH");
   printText(94, 48, relative_humidity);
-  /*
-
-
-  printText(98, 8, "%rh");
-  printText(98, 16, relative_humidity);
-
-  printText(16, 64,"ρ Dust");
-  printText(16, 72, dustDensity);
-
-  printText(16, 96,"CO2 (ppm):");
-  printText(16, 120, temperature);
-  */
 }
 
 void setup(){
   Serial.begin(9600);
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, SECRET_SSID, SECRET_PASS);
+  timer.setInterval(1000L, send_sensor);
+
   pinMode(ledPower,OUTPUT);
 
   dht.begin();
@@ -180,13 +168,13 @@ void setup(){
   display.clearDisplay();
 }
 
-
-
 void loop(){
   DSDataCollect(voMeasured, calcVoltage, dustDensity);
   getDataDHT(temperature, heat_index, relative_humidity);
   get_co2_ppm(co2_ppm);
 
+  Blynk.run();
+  timer.run();
   //Serial.println(voMeasured);
   //Serial.println(calcVoltage);
   //Serial.println(dustDensity);
